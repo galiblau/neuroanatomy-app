@@ -206,6 +206,19 @@
         canvas {
             cursor: crosshair;
         }
+
+        /* Styles for the new "Select Region" dropdown */
+        .select-region-control {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .select-region-control h4 {
+            margin-bottom: 10px;
+            color: #FFC107;
+        }
     </style>
 </head>
 <body>
@@ -233,6 +246,11 @@
                     <button onclick="resetView()">איפוס תצוגה</button>
                     <button onclick="toggleAnimation()">הפסק/התחל סיבוב</button>
                 </div>
+
+                <div class="control-group">
+                    <input type="checkbox" id="toggleBrainOutline" checked>
+                    <label for="toggleBrainOutline">הצג קווי מתאר מוח</label>
+                </div>
             </div>
 
             <div id="viewer-container">
@@ -250,6 +268,13 @@
                 <p><strong>גרור</strong> לסיבוב המודל תלת-המימדי</p>
                 <p><strong>גלגל עכבר</strong> לזום פנימה/החוצה</p>
                 <p><strong>שנה מצב תצוגה</strong> לחתכים שונים</p>
+            </div>
+
+            <div class="select-region-control">
+                <h4>בחר/י אזור מוח:</h4>
+                <select id="selectRegionDropdown">
+                    <option value="">בחר/י אזור...</option>
+                    </select>
             </div>
 
             <div class="slice-controls" id="sliceControls" style="display: none;">
@@ -287,128 +312,285 @@
         let isAnimating = true;
         let currentViewMode = '3d';
         let brainRegions = [];
-        let controls; // For OrbitControls
+        let brainOutline; // New variable for the transparent brain outline
+        let currentlyHighlightedRegion = null; // Stores the object currently highlighted
 
-        // Brain anatomy data
+        // Brain anatomy data - Restored to more detailed/applied style, expanded for new regions
         const brainAnatomyData = {
             'frontal_cortex': {
-                name: 'קליפת המוח המצחית',
+                name: 'קליפת המוח המצחית (Frontal Lobe)',
                 functions: [
-                    'תכנון וקבלת החלטות',
-                    'בקרה על תנועות וולונטריות',
-                    'אישיות ושיפוט'
+                    'מרכז הפיקוד והשליטה – אחראית על תכנון, קבלת החלטות, פתרון בעיות וביצועים.',
+                    'בקרת תנועה (קליפת המוח המוטורית הראשונית).',
+                    'שפה (אזור ברוקה - הפקת דיבור).',
+                    'זיכרון עבודה ותשומת לב.',
+                    'אישיות והתנהגות חברתית.'
                 ],
                 damage: [
-                    'שינויים באישיות',
-                    'קושי בקבלת החלטות'
+                    'שינויים קיצוניים באישיות ובהתנהגות (אדישות, אימפולסיביות).',
+                    'קושי בתכנון, ארגון ופתרון בעיות (פגיעה בתפקודים ניהוליים).',
+                    'אפאזיה אקספרסיבית (קושי בהפקת דיבור) אם נפגע אזור ברוקה.',
+                    'שיתוק או חולשה בצד הנגדי של הגוף.',
+                    'קשיי ריכוז וזיכרון עבודה.'
                 ],
                 tips: [
-                    'פעילות גופנית סדירה',
-                    'פתרון חידות ומשחקי חשיבה',
-                    'תזונה עשירה בנוגדי חמצון'
-                ],
-                color: '#FF6B6B'
+                    'פעילות גופנית סדירה: משפרת זרימת דם למוח ומחזקת קשרים עצביים.',
+                    'אתגרי חשיבה: פתרון תשבצים, לימוד שפות חדשות או נגינה בכלי.',
+                    'שינה איכותית: חיונית לגיבוש זיכרונות ולחידוש תאי מוח.',
+                    'ניהול מתחים: מדיטציה, יוגה או כל טכניקת הרפיה.'
+                ]
             },
             'parietal_cortex': {
-                name: 'קליפת המוח הפריאטלית',
+                name: 'קליפת המוח הפריאטלית (Parietal Lobe)',
                 functions: [
-                    'עיבוד מידע חושי (מגע, כאב, טמפרטורה)',
-                    'תפיסה מרחבית'
+                    'עיבוד מידע חושי – מגע, כאב, טמפרטורה ולחץ.',
+                    'תפיסה מרחבית וניווט.',
+                    'אינטגרציה של מידע חושי מורכב.',
+                    'מודעות גוף ומיקום במרחב.'
                 ],
                 damage: [
-                    'קושי בתפיסה מרחבית',
-                    'התעלמות מצד אחד של הגוף'
+                    'קושי בתפיסה מרחבית (לדוגמה, להתלבש, לנווט).',
+                    'הזנחת צד (Neglect) – חוסר מודעות לצד אחד של הגוף או המרחב.',
+                    'קושי בזיהוי אובייקטים באמצעות מגע (אסטרֵאוֹגנוֹזיס).',
+                    'בעיות בקואורדינציה עין-יד.',
+                    'קושי בעיבוד מספרים וחישובים.'
                 ],
                 tips: [
-                    'למידת שפות חדשות',
-                    'נגינה בכלי נגינה',
-                    'התמצאות במרחב'
-                ],
-                color: '#4ECDC4'
+                    'למידת שפות: משפרת את יכולת המוח לעבד מידע ולהתאים את עצמו.',
+                    'נגינה בכלי: משלבת תנועה, שמיעה ומגע ומעשירה קשרים עצביים.',
+                    'פעילויות יצירתיות: ציור, פיסול, עבודות יד.',
+                    'משחקי חשיבה: משחקי קופסה, פאזלים, חידות.'
+                ]
             },
             'temporal_cortex': {
-                name: 'קליפת המוח הרקתית',
+                name: 'קליפת המוח הרקתית (Temporal Lobe)',
                 functions: [
-                    'עיבוד שמיעה',
-                    'זיכרון לטווח ארוך',
-                    'הבנת שפה'
+                    'עיבוד שמיעה והבנת שפה (אזור ורניקה).',
+                    'זיכרון – בעיקר זיכרון ארוך טווח (קשור להיפוקמפוס).',
+                    'זיהוי פנים ואובייקטים.',
+                    'עיבוד רגשות (קשור לאמיגדלה).'
                 ],
                 damage: [
-                    'אובדן שמיעה',
-                    'בעיות זיכרון',
-                    'קושי בהבנת שפה'
+                    'בעיות שמיעה או הבנת דיבור (אפאזיה רצפטיבית).',
+                    'הפרעות זיכרון (קושי ביצירת זיכרונות חדשים או שליפת ישנים).',
+                    'קושי בזיהוי פנים (פרוסופאגנוזיה).',
+                    'שינויים התנהגותיים או רגשיים.'
                 ],
                 tips: [
-                    'שינה מספקת',
-                    'קריאה וכתיבה',
-                    'לימוד מיומנויות חדשות'
-                ],
-                color: '#45B7D1'
+                    'שינה איכותית: חיונית לגיבוש זיכרונות.',
+                    'קריאה ולימוד: מרחיבים את אוצר המילים ומשפרים הבנה שפתית.',
+                    'האזנה למוזיקה: מעוררת אזורים שמיעתיים ורגשיים במוח.',
+                    'אינטראקציה חברתית: משפרת מיומנויות תקשורת והבנה חברתית.'
+                ]
             },
             'occipital_cortex': {
-                name: 'קליפת המוח העורפית',
+                name: 'קליפת המוח העורפית (Occipital Lobe)',
                 functions: [
-                    'עיבוד ראייה',
-                    'זיהוי צורות וצבעים'
+                    'עיבוד מידע ראייתי – מה שאנו רואים.',
+                    'זיהוי צבעים, צורות ותנועה.',
+                    'פרשנות תמונות וגירויים חזותיים.'
                 ],
                 damage: [
-                    'עיוורון חלקי או מלא',
-                    'קושי בזיהוי צבעים'
+                    'פגיעה בראייה (עיוורון קורטיקלי, שדות ראייה חלקיים).',
+                    'קושי בזיהוי אובייקטים או צבעים.',
+                    'הזיות ראייה.'
                 ],
                 tips: [
-                    'פעילות גופנית המשפרת זרימת דם למוח',
-                    'תזונה עשירה בויטמינים C ו-E',
-                    'הגנה על העיניים'
-                ],
-                color: '#96CEB4'
+                    'הגנה על העיניים: שימוש במשקפי שמש, הפחתת זמן מסך.',
+                    'תזונה עשירה בנוגדי חמצון: ירקות ירוקים, פירות יער.',
+                    'חידות חזותיות: זיהוי תבניות, משחקי "מצא את ההבדלים".'
+                ]
             },
             'cerebellum': {
-                name: 'המוחון',
+                name: 'המוחון (Cerebellum)',
                 functions: [
-                    'איזון וקואורדינציה',
-                    'בקרה על תנועות דקות'
+                    'קואורדינציה ותיאום תנועות שרירים (תנועות עדינות וגסות).',
+                    'שמירה על שיווי משקל ויציבה.',
+                    'למידה מוטורית (למשל, רכיבה על אופניים).',
+                    'ייתכן תפקיד גם בקוגניציה ורגשות.'
                 ],
                 damage: [
-                    'אובדן איזון',
-                    'רעד בתנועות'
+                    'בעיות באיזון וקואורדינציה (אטקסיה).',
+                    'רעידות (טרמור) בתנועה.',
+                    'קושי בביצוע תנועות מהירות ומדויקות.',
+                    'הפרעות בדיבור (דיסארתריה).'
                 ],
                 tips: [
-                    'תרגול יוגה או טאי צ\'י',
-                    'פעילויות הדורשות קואורדינציה (ריקוד, ספורט)'
-                ],
-                color: '#FECA57'
+                    'יוגה ופילאטיס: משפרים איזון, גמישות וקואורדינציה.',
+                    'פעילויות קואורדינציה: ריקוד, משחקי כדור, אומנויות לחימה.',
+                    'תרגול תנועות עדינות: סריגה, ציור, פיסול.'
+                ]
             },
             'brainstem': {
-                name: 'גזע המוח',
+                name: 'גזע המוח (Brainstem)',
                 functions: [
-                    'בקרה על נשימה, קצב לב, לחץ דם',
-                    'מחזור שינה-ערות'
+                    'שליטה בתפקודי חיים בסיסיים והכרחיים: נשימה, קצב לב, לחץ דם, בליעה.',
+                    'מצב ערנות ושינה.',
+                    'ממסר מידע בין המוח הגדול, המוחון וחוט השדרה.',
+                    'שליטה בתנועות עיניים, פנים וצוואר.'
                 ],
                 damage: [
-                    'בעיות נשימה',
-                    'הפרעות קצב לב',
-                    'אובדן הכרה'
+                    'הפרעות נשימה וקצב לב מסכנות חיים.',
+                    'אובדן הכרה או תרדמת.',
+                    'שיתוק.',
+                    'קושי בבליעה ובדיבור.',
+                    'בעיות בוויסות טמפרטורת הגוף.'
                 ],
                 tips: [
-                    'הפחתת מתח',
-                    'שינה איכותית',
-                    'הימנעות מעישון ואלכוהול מופרז'
+                    'הפחתת מתח: טכניקות נשימה, מדיטציה, סביבה רגועה.',
+                    'שינה מספקת ואיכותית: חיונית לתפקודי גזע המוח.',
+                    'הימנעות מעישון ואלכוהול מוגזם: משפיעים לרעה על מערכת העצבים המרכזית.',
+                    'תזונה בריאה: תומכת בתפקודים נוירולוגיים כלליים.'
+                ]
+            },
+            'corpus_callosum': {
+                name: 'קורפוס קלוסום (Corpus Callosum)',
+                functions: [
+                    'גשר תקשורת עיקרי: מכלול של כ-200-250 מיליון סיבי עצב המחברים בין שתי המיספרות המוח (שמאל וימין).',
+                    'מאפשר העברת מידע מהירה ואינטגרציה קוגניטיבית בין ההמיספרות.',
+                    'חיוני לתפקודים קוגניטיביים מורכבים הדורשים תיאום בין צדי המוח.'
                 ],
-                color: '#FF7675'
+                damage: [
+                    'סינדרום ניתוק המיספרות (Split-Brain Syndrome): קושי לתאם מידע או פעולות בין צדי הגוף או המוח.',
+                    'אפרקסיה (קושי בביצוע תנועות רצוניות) או אגנוזיה (קושי בזיהוי) המוגבלת לצד אחד של הגוף.',
+                    'הפרעות שפה מסוימות.',
+                    'קשיים בעיבוד מידע חזותי המשתרע על פני שדות ראייה.'
+                ],
+                tips: [
+                    'פעילויות המחברות בין שתי הידיים/צדי הגוף: נגינה על פסנתר, הקלדה עיוורת, ספורט.',
+                    'למידה דו-צדדית: אתגרים קוגניטיביים הדורשים חשיבה סימולטנית משני צדי המוח.',
+                    'פעילויות יצירתיות: משפרות קשרים בין-המיספרים.'
+                ]
+            },
+            'thalamus': {
+                name: 'תלמוס (Thalamus)',
+                functions: [
+                    'מרכז ממסר ראשי: תחנת מעבר כמעט לכל המידע החושי (למעט חוש הריח) בדרכו לקליפת המוח וממנה.',
+                    'ויסות מצבי שינה וערות.',
+                    'מעורבות בבקרה על תנועה ובפונקציות קוגניטיביות כמו זיכרון ותשומת לב.'
+                ],
+                damage: [
+                    'פגיעה בעיבוד חושי: אובדן תחושה, כאב כרוני (כאב תלמי).',
+                    'הפרעות תנועה: רעד, אטקסיה.',
+                    'בעיות שינה.',
+                    'הפרעות קוגניטיביות: פגיעה בזיכרון, קשיי ריכוז.'
+                ],
+                tips: [
+                    'מדיטציה ומיינדפולנס: משפרים את היכולת לווסת קשב וחושים.',
+                    'הפחתת גירויים יתר: סביבה שקטה, הפסקות ממסכים.',
+                    'שינה סדירה: חיונית לתפקוד תקין של התלמוס.'
+                ]
+            },
+            'amygdala': {
+                name: 'אמיגדלה (Amygdala)',
+                functions: [
+                    'מרכז רגשי: עיבוד וזיהוי רגשות, בעיקר פחד, כעס וחרדה.',
+                    'גיבוש זיכרונות רגשיים: קושרת חוויות לרגשות.',
+                    'מעורבות בתגובת "הילחם או ברח".',
+                    'מודעות חברתית ורגשית.'
+                ],
+                damage: [
+                    'קושי בזיהוי רגשות אצל אחרים (בעיקר פחד).',
+                    'אובדן תחושת פחד.',
+                    'הפרעות חרדה או דיכאון.',
+                    'בעיות בהתנהגות חברתית.',
+                    'קושי ביצירת זיכרונות רגשיים.'
+                ],
+                tips: [
+                    'טכניקות הרפיה: נשימות עמוקות, יוגה, מדיטציה.',
+                    'פיתוח אינטליגנציה רגשית: זיהוי וביטוי רגשות.',
+                    'פעילות גופנית: מפחיתה חרדה ומשפרת מצב רוח.',
+                    'טיפול פסיכולוגי: לטיפול בהפרעות חרדה וטראומה.'
+                ]
+            },
+            'hippocampus': {
+                name: 'היפוקמפוס (Hippocampus)',
+                functions: [
+                    'מרכז הזיכרון: גיבוש זיכרונות חדשים לטווח ארוך (זיכרון דקלרטיבי - עובדות ואירועים).',
+                    'ניווט מרחבי: יצירת מפות קוגניטיביות של הסביבה.',
+                    'העברת מידע מזיכרון לטווח קצר לזיכרון לטווח ארוך.'
+                ],
+                damage: [
+                    'אמנזיה אנטרוגרדית (קושי ביצירת זיכרונות חדשים).',
+                    'אמנזיה רטרוגרדית (אובדן זיכרונות ישנים) במקרים חמורים.',
+                    'קושי בניווט והתמצאות במרחב.',
+                    'היפוקמפוס הוא אזור פגיע במיוחד במחלת אלצהיימר.'
+                ],
+                tips: [
+                    'למידה מתמשכת ואתגור קוגניטיבי: למידת שפות, קריאת ספרים, פתרון חידות.',
+                    'תזונה עשירה באומגה 3: דגים, אגוזים, זרעים.',
+                    'פעילות גופנית אירובית: מגבירה יצירת תאי עצב חדשים בהיפוקמפוס.',
+                    'שינה מספקת: חיונית לגיבוש זיכרונות בלילה.'
+                ]
+            },
+            'putamen': {
+                name: 'פוטמן (Putamen)',
+                functions: [
+                    'חלק מגרעיני הבסיס: מעורב בתכנון ובקרת תנועה (תנועות רצוניות).',
+                    'למידה מוטורית: תפקיד בהרכשת הרגלים מוטוריים.',
+                    'שליטה על תנועות אוטומטיות וקואורדינציה.'
+                ],
+                damage: [
+                    'הפרעות תנועה: דיסטוניה (התכווצויות שרירים), תנועות לא רצוניות.',
+                    'תסמינים דמויי פרקינסון: נוקשות, רעד, קושי ביוזמת תנועה.',
+                    'קשיים בלמידת מיומנויות מוטוריות חדשות.'
+                ],
+                tips: [
+                    'תרגול תנועות עדינות: כתיבה, ציור, נגינה.',
+                    'פעילות גופנית סדירה: מסייעת בשמירה על תפקוד מוטורי.',
+                    'תזונה מאוזנת: תומכת בבריאות נוירולוגית כללית.'
+                ]
+            },
+            'globus_pallidus': {
+                name: 'גלובוס פלידוס (Globus Pallidus)',
+                functions: [
+                    'חלק מרכזי בגרעיני הבסיס: אחראי על ויסות פעילות מוטורית.',
+                    'פועל כמעין "בלם" שמפחית תנועות לא רצויות ומאפשר תנועות רצוניות ומדויקות.',
+                    'קשור לשליטה על טונוס שרירים.'
+                ],
+                damage: [
+                    'הפרעות תנועה: דיסטוניה קשה, אקאתיזיה (אי שקט מוטורי).',
+                    'עשוי להיות מושפע במחלות כמו פרקינסון והנטינגטון.',
+                    'קשיים בביצוע תנועות חלקות ומבוקרות.'
+                ],
+                tips: [
+                    'פעילות גופנית מותאמת: לחיזוק שרירים ושיפור קואורדינציה.',
+                    'שמירה על משקל תקין: להפחתת עומס על מערכות התנועה.',
+                    'תמיכה נוירולוגית במקרה של מחלות רקע.'
+                ]
             }
         };
+
+        // Static colors for now, can be randomized or assigned later
+        const regionColors = {
+            'frontal_cortex': '#FF6B6B', // Reddish
+            'parietal_cortex': '#4ECDC4', // Teal
+            'temporal_cortex': '#45B7D1', // Light Blue
+            'occipital_cortex': '#96CEB4', // Mint Green
+            'cerebellum': '#FECA57',    // Yellow/Orange
+            'brainstem': '#FF7675',     // Salmon
+            'corpus_callosum': '#A287B9', // Purple
+            'thalamus': '#FFD700',       // Gold
+            'amygdala': '#FF8C00',       // Dark Orange
+            'hippocampus': '#DAA520',    // Goldenrod
+            'putamen': '#8A2BE2',        // Blue Violet
+            'globus_pallidus': '#ADFF2F' // Green Yellow
+        };
+
 
         // Initialize the application
         function init() {
             setupScene();
             createBrainModel();
+            createBrainOutline(); // New: Create the brain outline
+            populateRegionDropdown(); // New: Populate dropdown
             setupEventListeners();
             animate();
 
             // Hide loading after initialization
             setTimeout(() => {
                 document.getElementById('loading').style.display = 'none';
-            }, 2000);
+            }, 2000); // Give some time for initial render
         }
 
         function setupScene() {
@@ -451,13 +633,13 @@
             const frontalMaterial = createBrainMaterial(brainTexture, 'frontal_cortex');
             const frontalLobeLeft = new THREE.Mesh(frontalGeometry, frontalMaterial);
             frontalLobeLeft.position.set(-0.6, 0.4, 0.8);
-            frontalLobeLeft.userData = { regionName: 'frontal_cortex' };
+            frontalLobeLeft.userData = { regionName: 'frontal_cortex', originalColor: frontalMaterial.color.getHex() };
             brain.add(frontalLobeLeft);
             brainRegions.push(frontalLobeLeft);
 
             const frontalLobeRight = new THREE.Mesh(frontalGeometry, frontalMaterial);
             frontalLobeRight.position.set(0.6, 0.4, 0.8);
-            frontalLobeRight.userData = { regionName: 'frontal_cortex' };
+            frontalLobeRight.userData = { regionName: 'frontal_cortex', originalColor: frontalMaterial.color.getHex() };
             brain.add(frontalLobeRight);
             brainRegions.push(frontalLobeRight);
 
@@ -466,13 +648,13 @@
             const parietalMaterial = createBrainMaterial(brainTexture, 'parietal_cortex');
             const parietalLobeLeft = new THREE.Mesh(parietalGeometry, parietalMaterial);
             parietalLobeLeft.position.set(-0.5, 0.8, -0.2);
-            parietalLobeLeft.userData = { regionName: 'parietal_cortex' };
+            parietalLobeLeft.userData = { regionName: 'parietal_cortex', originalColor: parietalMaterial.color.getHex() };
             brain.add(parietalLobeLeft);
             brainRegions.push(parietalLobeLeft);
 
             const parietalLobeRight = new THREE.Mesh(parietalGeometry, parietalMaterial);
             parietalLobeRight.position.set(0.5, 0.8, -0.2);
-            parietalLobeRight.userData = { regionName: 'parietal_cortex' };
+            parietalLobeRight.userData = { regionName: 'parietal_cortex', originalColor: parietalMaterial.color.getHex() };
             brain.add(parietalLobeRight);
             brainRegions.push(parietalLobeRight);
 
@@ -482,14 +664,14 @@
             const temporalLobeLeft = new THREE.Mesh(temporalGeometry, temporalMaterial);
             temporalLobeLeft.position.set(-1.0, -0.2, 0.2);
             temporalLobeLeft.rotation.z = 0.3;
-            temporalLobeLeft.userData = { regionName: 'temporal_cortex' };
+            temporalLobeLeft.userData = { regionName: 'temporal_cortex', originalColor: temporalMaterial.color.getHex() };
             brain.add(temporalLobeLeft);
             brainRegions.push(temporalLobeLeft);
 
             const temporalLobeRight = new THREE.Mesh(temporalGeometry, temporalMaterial);
             temporalLobeRight.position.set(1.0, -0.2, 0.2);
             temporalLobeRight.rotation.z = -0.3;
-            temporalLobeRight.userData = { regionName: 'temporal_cortex' };
+            temporalLobeRight.userData = { regionName: 'temporal_cortex', originalColor: temporalMaterial.color.getHex() };
             brain.add(temporalLobeRight);
             brainRegions.push(temporalLobeRight);
 
@@ -498,13 +680,13 @@
             const occipitalMaterial = createBrainMaterial(brainTexture, 'occipital_cortex');
             const occipitalLobeLeft = new THREE.Mesh(occipitalGeometry, occipitalMaterial);
             occipitalLobeLeft.position.set(-0.3, 0.3, -1.2);
-            occipitalLobeLeft.userData = { regionName: 'occipital_cortex' };
+            occipitalLobeLeft.userData = { regionName: 'occipital_cortex', originalColor: occipitalMaterial.color.getHex() };
             brain.add(occipitalLobeLeft);
             brainRegions.push(occipitalLobeLeft);
 
             const occipitalLobeRight = new THREE.Mesh(occipitalGeometry, occipitalMaterial);
             occipitalLobeRight.position.set(0.3, 0.3, -1.2);
-            occipitalLobeRight.userData = { regionName: 'occipital_cortex' };
+            occipitalLobeRight.userData = { regionName: 'occipital_cortex', originalColor: occipitalMaterial.color.getHex() };
             brain.add(occipitalLobeRight);
             brainRegions.push(occipitalLobeRight);
 
@@ -514,7 +696,7 @@
             const cerebellumMaterial = createBrainMaterial(brainTexture, 'cerebellum');
             const cerebellum = new THREE.Mesh(cerebellumGeometry, cerebellumMaterial);
             cerebellum.position.set(0, -0.8, -0.8);
-            cerebellum.userData = { regionName: 'cerebellum' };
+            cerebellum.userData = { regionName: 'cerebellum', originalColor: cerebellumMaterial.color.getHex() };
             brain.add(cerebellum);
             brainRegions.push(cerebellum);
 
@@ -523,9 +705,99 @@
             const brainstemMaterial = createBrainMaterial(brainTexture, 'brainstem');
             const brainstem = new THREE.Mesh(brainstemGeometry, brainstemMaterial);
             brainstem.position.set(0, -0.3, 0);
-            brainstem.userData = { regionName: 'brainstem' };
+            brainstem.userData = { regionName: 'brainstem', originalColor: brainstemMaterial.color.getHex() };
             brain.add(brainstem);
             brainRegions.push(brainstem);
+
+            // --- New Internal Brain Regions ---
+
+            // Corpus Callosum
+            const corpusCallosumGeometry = new THREE.BoxGeometry(0.7, 0.1, 0.3); // Flat, elongated shape
+            const corpusCallosumMaterial = createBrainMaterial(brainTexture, 'corpus_callosum');
+            const corpusCallosum = new THREE.Mesh(corpusCallosumGeometry, corpusCallosumMaterial);
+            corpusCallosum.position.set(0, 0.2, 0); // Roughly in the center, above thalamus
+            corpusCallosum.userData = { regionName: 'corpus_callosum', originalColor: corpusCallosumMaterial.color.getHex() };
+            brain.add(corpusCallosum);
+            brainRegions.push(corpusCallosum);
+
+            // Thalamus (Left and Right) - often almond-shaped, but sphere is a good approximation
+            const thalamusGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+            const thalamusMaterial = createBrainMaterial(brainTexture, 'thalamus');
+            const thalamusLeft = new THREE.Mesh(thalamusGeometry, thalamusMaterial);
+            thalamusLeft.position.set(-0.25, 0.05, 0);
+            thalamusLeft.userData = { regionName: 'thalamus', originalColor: thalamusMaterial.color.getHex() };
+            brain.add(thalamusLeft);
+            brainRegions.push(thalamusLeft);
+
+            const thalamusRight = new THREE.Mesh(thalamusGeometry, thalamusMaterial);
+            thalamusRight.position.set(0.25, 0.05, 0);
+            thalamusRight.userData = { regionName: 'thalamus', originalColor: thalamusMaterial.color.getHex() };
+            brain.add(thalamusRight);
+            brainRegions.push(thalamusRight);
+
+            // Amygdala (Left and Right) - small almond-shaped
+            const amygdalaGeometry = new THREE.SphereGeometry(0.12, 12, 12); // Smaller sphere
+            const amygdalaMaterial = createBrainMaterial(brainTexture, 'amygdala');
+            const amygdalaLeft = new THREE.Mesh(amygdalaGeometry, amygdalaMaterial);
+            amygdalaLeft.position.set(-0.4, -0.15, 0.3); // Inferior and anterior to thalamus
+            amygdalaLeft.userData = { regionName: 'amygdala', originalColor: amygdalaMaterial.color.getHex() };
+            brain.add(amygdalaLeft);
+            brainRegions.push(amygdalaLeft);
+
+            const amygdalaRight = new THREE.Mesh(amygdalaGeometry, amygdalaMaterial);
+            amygdalaRight.position.set(0.4, -0.15, 0.3);
+            amygdalaRight.userData = { regionName: 'amygdala', originalColor: amygdalaMaterial.color.getHex() };
+            brain.add(amygdalaRight);
+            brainRegions.push(amygdalaRight);
+
+            // Hippocampus (Left and Right) - elongated, seahorse-like. Using elongated sphere.
+            const hippocampusGeometry = new THREE.SphereGeometry(0.15, 16, 16);
+            hippocampusGeometry.scale(1.0, 0.8, 1.8); // Elongate it
+            const hippocampusMaterial = createBrainMaterial(brainTexture, 'hippocampus');
+            const hippocampusLeft = new THREE.Mesh(hippocampusGeometry, hippocampusMaterial);
+            hippocampusLeft.position.set(-0.4, -0.3, 0.0); // Posterior to amygdala
+            hippocampusLeft.rotation.y = Math.PI / 4; // Slight rotation for better positioning
+            hippocampusLeft.userData = { regionName: 'hippocampus', originalColor: hippocampusMaterial.color.getHex() };
+            brain.add(hippocampusLeft);
+            brainRegions.push(hippocampusLeft);
+
+            const hippocampusRight = new THREE.Mesh(hippocampusGeometry, hippocampusMaterial);
+            hippocampusRight.position.set(0.4, -0.3, 0.0);
+            hippocampusRight.rotation.y = -Math.PI / 4;
+            hippocampusRight.userData = { regionName: 'hippocampus', originalColor: hippocampusMaterial.color.getHex() };
+            brain.add(hippocampusRight);
+            brainRegions.push(hippocampusRight);
+
+            // Putamen (Left and Right) - large, roundish component of basal ganglia
+            const putamenGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+            const putamenMaterial = createBrainMaterial(brainTexture, 'putamen');
+            const putamenLeft = new THREE.Mesh(putamenGeometry, putamenMaterial);
+            putamenLeft.position.set(-0.45, 0.0, -0.1); // Lateral to thalamus
+            putamenLeft.userData = { regionName: 'putamen', originalColor: putamenMaterial.color.getHex() };
+            brain.add(putamenLeft);
+            brainRegions.push(putamenLeft);
+
+            const putamenRight = new THREE.Mesh(putamenGeometry, putamenMaterial);
+            putamenRight.position.set(0.45, 0.0, -0.1);
+            putamenRight.userData = { regionName: 'putamen', originalColor: putamenMaterial.color.getHex() };
+            brain.add(putamenRight);
+            brainRegions.push(putamenRight);
+
+            // Globus Pallidus (Left and Right) - usually medial to putamen, somewhat elongated
+            const globusPallidusGeometry = new THREE.SphereGeometry(0.15, 16, 16);
+            globusPallidusGeometry.scale(1.0, 0.8, 1.2); // Slightly elongated
+            const globusPallidusMaterial = createBrainMaterial(brainTexture, 'globus_pallidus');
+            const globusPallidusLeft = new THREE.Mesh(globusPallidusGeometry, globusPallidusMaterial);
+            globusPallidusLeft.position.set(-0.35, 0.0, -0.05); // Medial and slightly posterior to putamen
+            globusPallidusLeft.userData = { regionName: 'globus_pallidus', originalColor: globusPallidusMaterial.color.getHex() };
+            brain.add(globusPallidusLeft);
+            brainRegions.push(globusPallidusLeft);
+
+            const globusPallidusRight = new THREE.Mesh(globusPallidusGeometry, globusPallidusMaterial);
+            globusPallidusRight.position.set(0.35, 0.0, -0.05);
+            globusPallidusRight.userData = { regionName: 'globus_pallidus', originalColor: globusPallidusMaterial.color.getHex() };
+            brain.add(globusPallidusRight);
+            brainRegions.push(globusPallidusRight);
 
             scene.add(brain);
         }
@@ -546,7 +818,7 @@
         function createBrainMaterial(texture, regionName) {
             return new THREE.MeshPhongMaterial({
                 map: texture,
-                color: brainAnatomyData[regionName].color,
+                color: regionColors[regionName],
                 transparent: true,
                 opacity: 0.8,
                 shininess: 20
@@ -558,14 +830,12 @@
             canvas.width = 256;
             canvas.height = 256;
             const ctx = canvas.getContext('2d');
-            // Create brain-like texture
             const gradient = ctx.createLinearGradient(0, 0, 256, 256);
             gradient.addColorStop(0, '#f0f0f0');
             gradient.addColorStop(0.5, '#e0e0e0');
             gradient.addColorStop(1, '#c0c0c0');
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, 256, 256);
-            // Add some lines to simulate gyri/sulci
             ctx.strokeStyle = '#b0b0b0';
             ctx.lineWidth = 1;
             for (let i = 0; i < 50; i++) {
@@ -577,6 +847,43 @@
             return new THREE.CanvasTexture(canvas);
         }
 
+        // --- New: Create the semi-transparent brain outline ---
+        function createBrainOutline() {
+            // This will be a general ellipsoidal shape slightly larger than the brain group
+            const geometry = new THREE.SphereGeometry(2.0, 64, 64); // Larger sphere to encompass the brain
+            geometry.scale(1.2, 1.0, 1.2); // Adjust scale for more brain-like overall shape
+
+            const material = new THREE.MeshBasicMaterial({
+                color: 0xAAAAAA, // Light grey color
+                transparent: true,
+                opacity: 0.1, // Very transparent
+                wireframe: true, // Show only the outline
+                side: THREE.DoubleSide // Ensure it's visible from both sides
+            });
+            brainOutline = new THREE.Mesh(geometry, material);
+            brainOutline.position.set(0, 0, 0); // Center it
+            scene.add(brainOutline);
+        }
+
+        // --- New: Populate Region Dropdown ---
+        function populateRegionDropdown() {
+            const dropdown = document.getElementById('selectRegionDropdown');
+            // Get all unique region names from brainAnatomyData
+            const uniqueRegionNames = Object.keys(brainAnatomyData).sort((a, b) => {
+                const nameA = brainAnatomyData[a].name;
+                const nameB = brainAnatomyData[b].name;
+                return nameA.localeCompare(nameB, 'he', { sensitivity: 'base' }); // Sort alphabetically
+            });
+
+            uniqueRegionNames.forEach(key => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = brainAnatomyData[key].name;
+                dropdown.appendChild(option);
+            });
+        }
+
+
         function setupEventListeners() {
             // Window resize
             window.addEventListener('resize', onWindowResize);
@@ -587,6 +894,8 @@
             document.getElementById('viewMode').addEventListener('change', onViewModeChange);
             document.getElementById('imageUpload').addEventListener('change', onImageUpload);
             document.getElementById('sliceDepth').addEventListener('input', onSliceDepthChange);
+            document.getElementById('toggleBrainOutline').addEventListener('change', onToggleBrainOutline); // New Listener
+            document.getElementById('selectRegionDropdown').addEventListener('change', onRegionSelect); // New Listener
         }
 
         function onWindowResize() {
@@ -605,7 +914,6 @@
             raycaster.setFromCamera(mouse, camera);
             const intersects = raycaster.intersectObjects(brainRegions, true); // True to check descendants
             if (intersects.length > 0) {
-                // Find the first intersected object that has a regionName userData
                 let selectedObject = intersects[0].object;
                 while (selectedObject && !selectedObject.userData.regionName) {
                     selectedObject = selectedObject.parent;
@@ -613,8 +921,26 @@
                 if (selectedObject && selectedObject.userData.regionName) {
                     const selectedRegion = selectedObject.userData.regionName;
                     displayRegionInfo(selectedRegion);
-                    highlightRegion(selectedObject);
+                    highlightRegion(selectedRegion);
+                    document.getElementById('selectRegionDropdown').value = selectedRegion; // Update dropdown
                 }
+            } else {
+                // If clicked nowhere, clear selection and highlight
+                displayRegionInfo('welcome'); // Display default welcome info
+                resetHighlight();
+                document.getElementById('selectRegionDropdown').value = ""; // Reset dropdown
+            }
+        }
+
+        // New: Handle region selection from dropdown
+        function onRegionSelect(event) {
+            const selectedRegion = event.target.value;
+            if (selectedRegion) {
+                displayRegionInfo(selectedRegion);
+                highlightRegion(selectedRegion);
+            } else {
+                displayRegionInfo('welcome');
+                resetHighlight();
             }
         }
 
@@ -626,6 +952,12 @@
                 // Rotate the entire brain group, not just individual components
                 brain.rotation.y += deltaX;
                 brain.rotation.x += deltaY;
+
+                // Rotate the brain outline with the brain
+                if (brainOutline) {
+                    brainOutline.rotation.y += deltaX;
+                    brainOutline.rotation.x += deltaY;
+                }
             }
         }
 
@@ -637,10 +969,12 @@
             camera.position.set(0, 0, 5);
             camera.lookAt(0, 0, 0);
             brain.rotation.set(0, 0, 0); // Crucial for slice views to work consistently
+            if (brainOutline) {
+                brainOutline.rotation.set(0, 0, 0); // Reset outline rotation too
+            }
 
             // Stop animation when changing view mode
             isAnimating = false;
-            // Update button text accordingly
             const toggleButton = document.querySelector('.control-group button:last-child');
             if (toggleButton) {
                 toggleButton.textContent = 'התחל סיבוב';
@@ -648,14 +982,10 @@
 
             if (currentViewMode === '3d') {
                 sliceControls.style.display = 'none';
-                // ודא שכל האזורים שוב שקופים לחלוטין (לאחר חתך)
                 brainRegions.forEach(region => {
-                    // הגדר במפורש את רמת השקיפות המלאה לתצוגת תלת-מימד
-                    region.material.opacity = 0.8; // רמת השקיפות הסטנדרטית למוח בתלת-מימד
-                    // ודא גם שהמאפיין transparent מוגדר ל-true (חיוני לשקיפות)
+                    region.material.opacity = 0.8; // Standard opacity for 3D view
                     region.material.transparent = true;
-                    // בנוסף, נאפס גם את ההדגשה והגודל אם היו כאלה
-                    region.material.emissive.setHex(0x000000);
+                    region.material.emissive.setHex(0x000000); // Clear highlight
                     region.scale.set(1, 1, 1);
                     if (region.userData.highlightInterval) {
                         clearInterval(region.userData.highlightInterval);
@@ -665,10 +995,9 @@
             } else {
                 sliceControls.style.display = 'block';
                 setupSliceView();
-                // כשנכנסים למצב חתך, כל האזורים צריכים להיות שקופים (לפני ה"חיתוך" הספציפי)
                 brainRegions.forEach(region => {
-                     region.material.transparent = true; // ודא שקוף מוגדר ל-true
-                     region.material.opacity = 0.8; // התחל עם השקיפות הסטנדרטית לפני יישום החתך
+                     region.material.transparent = true;
+                     region.material.opacity = 0.8;
                 });
                 onSliceDepthChange({ target: { value: document.getElementById('sliceDepth').value } });
             }
@@ -695,38 +1024,34 @@
             const depth = event.target.value;
             document.getElementById('sliceValue').textContent = depth;
 
-            // Update slice plane based on current view mode
             brainRegions.forEach(region => {
                 const normalizedDepth = (depth - 50) / 50; // -1 to 1
 
-                // Adjust opacity based on distance from the slice plane
-                let positionToCheck = 0; // The coordinate to check for slicing
-                let slicePlaneNormal = new THREE.Vector3(); // Normal of the slicing plane
-
+                let positionToCheck = 0;
                 switch (currentViewMode) {
                     case 'sagittal':
                         positionToCheck = region.position.x;
-                        slicePlaneNormal.set(1, 0, 0); // Slice along X-axis
                         break;
                     case 'coronal':
                         positionToCheck = region.position.z;
-                        slicePlaneNormal.set(0, 0, 1); // Slice along Z-axis
                         break;
                     case 'axial':
                         positionToCheck = region.position.y;
-                        slicePlaneNormal.set(0, 1, 0); // Slice along Y-axis
                         break;
                 }
 
-                // Calculate distance from the current slice plane
-                // The slice plane is at normalizedDepth relative to the brain's center (0,0,0)
-                // For simplicity, let's just use the position of the region's center
-                const distance = Math.abs(positionToCheck - normalizedDepth * 2); // Multiply by 2 for a larger range
-
-                const maxDistance = 2.0; // Assuming brain extends roughly +/- 2 units
-                const opacity = THREE.MathUtils.mapLinear(distance, 0, maxDistance, 0.8, 0.1); // Fade out with distance
-                region.material.opacity = Math.max(0.1, opacity); // Ensure min opacity for visibility
+                const distance = Math.abs(positionToCheck - normalizedDepth * 2);
+                const maxDistance = 2.0;
+                const opacity = THREE.MathUtils.mapLinear(distance, 0, maxDistance, 0.8, 0.05);
+                region.material.opacity = Math.max(0.05, opacity);
             });
+
+            // Adjust outline opacity if needed for slice views (optional, could remain constant)
+            if (brainOutline && currentViewMode !== '3d') {
+                brainOutline.material.opacity = 0.05; // Make outline less visible in slice mode
+            } else if (brainOutline && currentViewMode === '3d') {
+                brainOutline.material.opacity = 0.1; // Restore normal opacity in 3D
+            }
         }
 
         function onImageUpload(event) {
@@ -753,99 +1078,155 @@
             }
         }
 
+        // New: Toggle Brain Outline visibility
+        function onToggleBrainOutline(event) {
+            if (brainOutline) {
+                brainOutline.visible = event.target.checked;
+            }
+        }
+
+
         function displayRegionInfo(regionName) {
-            const data = brainAnatomyData[regionName];
+            let data;
+            if (regionName === 'welcome') {
+                data = {
+                    name: 'ברוכים הבאים לאפליקציית הנוירואנטומיה',
+                    functions: ['אפליקציה זו מאפשרת לכם לחקור את המוח האנושי בצורה אינטראקטיבית.'],
+                    damage: [
+                        'מודל תלת-מיממדי אינטראקטיבי של המוח',
+                        'זיהוי אזורים אנטומיים בלחיצה',
+                        'תצוגת חתכים בכל הכיוונים',
+                        'העלאת תמונות MRI אישיות',
+                        'מידע על תפקודים ופגיעות'
+                    ],
+                    tips: ['לחצו על כל אזור במוח כדי לקבל מידע מפורט עליו. השתמשו בבקרות העליונות כדי לשנות את מצב התצוגה או להעלות תמונות אישיות.']
+                };
+            } else {
+                data = brainAnatomyData[regionName];
+            }
+
             const infoContainer = document.getElementById('regionInfo');
+
+            const functionsList = data.functions ? data.functions.map(func => `<li>${func}</li>`).join('') : '';
+            const damageList = data.damage ? data.damage.map(damage => `<li>${damage}</li>`).join('') : '';
+            const tipsList = data.tips ? data.tips.map(tip => `<li>${tip}</li>`).join('') : '';
 
             infoContainer.innerHTML = `
                 <div class="info-card">
                     <h3>${data.name}</h3>
 
-                    <h4>תפקודים עיקריים:</h4>
-                    <ul>
-                        ${data.functions.map(func => `<li>${func}</li>`).join('')}
-                    </ul>
-
-                    <h4>השלכות של פגיעה באזור:</h4>
-                    <ul>
-                        ${data.damage.map(damage => `<li>${damage}</li>`).join('')}
-                    </ul>
-
-                    <h4>טיפים לשמירה על בריאות המוח:</h4>
-                    <ul>
-                        ${data.tips.map(tip => `<li>${tip}</li>`).join('')}
-                    </ul>
+                    ${functionsList ? `<h4>תפקודים עיקריים:</h4><ul>${functionsList}</ul>` : ''}
+                    ${damageList ? `<h4>השלכות של פגיעה באזור:</h4><ul>${damageList}</ul>` : ''}
+                    ${tipsList ? `<h4>טיפים לשמירה על בריאות המוח:</h4><ul>${tipsList}</ul>` : ''}
                 </div>
             `;
         }
 
-        function highlightRegion(region) {
-            // Reset all regions
-            brainRegions.forEach(r => {
-                r.material.emissive.setHex(0x000000);
-                r.scale.set(1, 1, 1);
-                // Clear any previous highlight animation
-                if (r.userData.highlightInterval) {
-                    clearInterval(r.userData.highlightInterval);
-                    r.userData.highlightInterval = null;
+        // Modified Highlight function for clearer visual indication
+        function highlightRegion(regionName) {
+            resetHighlight(); // First, reset any existing highlight
+
+            brainRegions.forEach(obj => {
+                if (obj.userData.regionName === regionName) {
+                    currentlyHighlightedRegion = obj; // Store the currently highlighted object
+
+                    // Store original color if not already stored (should be stored during creation)
+                    if (obj.userData.originalColor === undefined) {
+                        obj.userData.originalColor = obj.material.color.getHex();
+                    }
+
+                    // Apply a bright emissive color for a glowing effect
+                    obj.material.emissive.setHex(0xFFFFFF); // Bright white glow
+                    obj.material.emissiveIntensity = 0.8; // Increase glow intensity
+
+                    // Also change the main color slightly to make it pop more
+                    // obj.material.color.setHex(0xFFA500); // Orange tint, for example
+
+                    // Slightly enlarge
+                    obj.scale.set(1.05, 1.05, 1.05);
+
+                    // Animate a pulsating glow (optional, but enhances effect)
+                    let glowIntensity = 0.8;
+                    let growing = true;
+                    if (obj.userData.highlightInterval) {
+                        clearInterval(obj.userData.highlightInterval);
+                    }
+                    obj.userData.highlightInterval = setInterval(() => {
+                        if (growing) {
+                            glowIntensity += 0.05;
+                            if (glowIntensity >= 1.5) growing = false;
+                        } else {
+                            glowIntensity -= 0.05;
+                            if (glowIntensity <= 0.8) growing = true;
+                        }
+                        obj.material.emissiveIntensity = glowIntensity;
+                    }, 100); // Slower pulse
                 }
             });
-
-            // Highlight selected region
-            region.material.emissive.setHex(0x444444); // Subtle emission for highlight
-            region.scale.set(1.1, 1.1, 1.1);
-
-            // Animate highlight
-            let scale = 1.1;
-            let growing = true; // Start by growing
-            const highlightAnimation = setInterval(() => {
-                if (growing) {
-                    scale += 0.01;
-                    if (scale >= 1.2) growing = false;
-                } else {
-                    scale -= 0.01;
-                    if (scale <= 1.1) growing = true;
-                }
-                region.scale.set(scale, scale, scale);
-            }, 50); // Adjust speed of animation
-
-            region.userData.highlightInterval = highlightAnimation; // Store interval to clear later
         }
+
+        function resetHighlight() {
+            if (currentlyHighlightedRegion && currentlyHighlightedRegion.userData.highlightInterval) {
+                clearInterval(currentlyHighlightedRegion.userData.highlightInterval);
+                currentlyHighlightedRegion.userData.highlightInterval = null;
+            }
+
+            brainRegions.forEach(r => {
+                r.material.emissive.setHex(0x000000); // Clear emission
+                r.material.emissiveIntensity = 0; // Reset intensity
+                if (r.userData.originalColor !== undefined) {
+                    r.material.color.setHex(r.userData.originalColor); // Restore original base color
+                }
+                r.scale.set(1, 1, 1); // Reset scale
+            });
+            currentlyHighlightedRegion = null;
+        }
+
 
         function resetView() {
             camera.position.set(0, 0, 5);
-            camera.lookAt(0, 0, 0); // Ensure camera is looking at the center
-            brain.rotation.set(0, 0, 0); // Reset brain rotation
-            // Also reset view mode to 3D if it's not
+            camera.lookAt(0, 0, 0);
+            brain.rotation.set(0, 0, 0);
+            if (brainOutline) {
+                brainOutline.rotation.set(0, 0, 0);
+                brainOutline.visible = true; // Show outline on reset
+                document.getElementById('toggleBrainOutline').checked = true;
+            }
             document.getElementById('viewMode').value = '3d';
             currentViewMode = '3d';
             document.getElementById('sliceControls').style.display = 'none';
-            // Reset opacity of brain regions
+            // Reset all regions to their original state
             brainRegions.forEach(region => {
-                region.material.opacity = 0.8;
-                region.material.emissive.setHex(0x000000); // Clear highlight
+                region.material.opacity = 0.8; // Standard opacity
+                region.material.transparent = true;
+                if (region.userData.originalColor !== undefined) {
+                    region.material.color.setHex(region.userData.originalColor); // Restore original base color
+                }
+                region.material.emissive.setHex(0x000000); // Clear emission
+                region.material.emissiveIntensity = 0; // Reset intensity
                 region.scale.set(1, 1, 1); // Reset scale
                 if (region.userData.highlightInterval) {
                     clearInterval(region.userData.highlightInterval);
                     region.userData.highlightInterval = null;
                 }
             });
-            // Remove uploaded image if present
+            currentlyHighlightedRegion = null; // Clear currently highlighted
             const existingImage = scene.getObjectByName('uploadedImage');
             if (existingImage) {
                 scene.remove(existingImage);
             }
-             // Ensure animation is ON by default after reset (or off, based on preference)
             isAnimating = true;
             const toggleButton = document.querySelector('.control-group button:last-child');
             if (toggleButton) {
                 toggleButton.textContent = 'הפסק סיבוב';
             }
+            // Reset dropdown and info
+            document.getElementById('selectRegionDropdown').value = "";
+            displayRegionInfo('welcome');
         }
 
         function toggleAnimation() {
             isAnimating = !isAnimating;
-            // Update button text (optional)
             const button = document.querySelector('.control-group button:last-child');
             if (button) {
                 button.textContent = isAnimating ? 'הפסק סיבוב' : 'התחל סיבוב';
@@ -856,7 +1237,10 @@
             requestAnimationFrame(animate);
 
             if (isAnimating && currentViewMode === '3d') {
-                brain.rotation.y += 0.005; // Rotate the brain
+                brain.rotation.y += 0.005;
+                if (brainOutline) {
+                    brainOutline.rotation.y += 0.005;
+                }
             }
             renderer.render(scene, camera);
         }
